@@ -1,0 +1,1730 @@
+HTML_PAGE = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Christmas Tree</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+        width: 100%; height: 100%;
+        overflow: hidden;
+        background: radial-gradient(ellipse at 50% 38%, #0c1a34 0%, #060e1f 42%, #010208 100%);
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    canvas { display: block; }
+
+    #hint {
+        position: fixed;
+        bottom: max(20px, env(safe-area-inset-bottom));
+        left: 0; width: 100%;
+        text-align: center;
+        color: rgba(180, 220, 255, 0.55);
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 13px;
+        letter-spacing: 3px;
+        pointer-events: none;
+        user-select: none;
+        text-shadow: 0 0 12px rgba(120, 190, 255, 0.4);
+        animation: breathe 3.5s ease-in-out infinite alternate;
+        z-index: 1;
+    }
+    @keyframes breathe {
+        from { opacity: 0.3; }
+        to   { opacity: 0.85; }
+    }
+
+    /* 右下角文字 */
+    #text-overlay {
+        position: fixed;
+        right: 30px;
+        bottom: 70px;
+        text-align: right;
+        color: rgba(255, 255, 255, 0.95);
+        font-family: "Brush Script MT", "Lucida Handwriting", "Comic Sans MS", cursive;
+        pointer-events: none;
+        user-select: none;
+        z-index: 2;
+        text-shadow: 0 0 15px rgba(135, 206, 255, 0.8), 0 0 30px rgba(100, 180, 255, 0.5);
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 2s ease-out, transform 2s ease-out;
+    }
+    #text-overlay.show { opacity: 1; transform: translateY(0); }
+    .title-text {
+        font-size: 3.2rem;
+        line-height: 1.1;
+        letter-spacing: 2px;
+        font-weight: normal;
+        font-style: italic;
+    }
+    .sub-text {
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 1rem;
+        letter-spacing: 6px;
+        margin-top: 8px;
+        color: rgba(200, 230, 255, 0.85);
+        font-weight: 300;
+    }
+
+    /* 【修改点】左侧文案往上移 */
+    #left-text {
+        position: fixed;
+        left: max(30px, env(safe-area-inset-left));
+        top: 32%; /* 原来是 40%，现在改为 32%，数字越小越往上 */
+        transform: translateY(-50%);
+        z-index: 2;
+        pointer-events: none;
+        user-select: none;
+        text-align: left;
+        max-width: min(34vw, 420px);
+        color: rgba(255, 255, 255, 0.92);
+        font-family: "Snell Roundhand", "Brush Script MT", "Segoe Script", "Lucida Handwriting", cursive;
+        font-style: italic;
+        text-shadow: 0 0 14px rgba(150, 210, 255, 0.75), 0 0 34px rgba(90, 160, 255, 0.45);
+        opacity: 0;
+        transition: opacity 2.4s ease-out;
+    }
+    #left-text.show { opacity: 1; }
+    #left-text .line {
+        display: block;
+        font-size: 1.55rem;
+        line-height: 1.65;
+        letter-spacing: 0.5px;
+    }
+    #left-text .line:nth-child(2) { padding-left: 1.6rem; }
+    #left-text .sign {
+        display: block;
+        margin-top: 1.1rem;
+        padding-left: 3.2rem;
+        font-size: 1.25rem;
+        color: rgba(205, 230, 255, 0.85);
+    }
+
+    @media (max-width: 768px) {
+        #text-overlay { right: 20px; bottom: 60px; }
+        .title-text { font-size: 2.2rem; }
+        .sub-text { font-size: 0.8rem; letter-spacing: 3px; }
+        /* 【修改点】手机端文案也相应上移 */
+        #left-text {
+            left: 18px;
+            top: 30%; /* 原来是 38%，现在改为 30% */
+            max-width: 46vw;
+        }
+        #left-text .line { font-size: 1rem; line-height: 1.6; }
+        #left-text .line:nth-child(2) { padding-left: 0.9rem; }
+        #left-text .sign { font-size: 0.9rem; padding-left: 1.8rem; margin-top: 0.7rem; }
+    }
+
+    /* ========== 新增：信封遮罩层 ========== */
+    #envelope-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: radial-gradient(ellipse at 50% 38%, #0c1a34 0%, #060e1f 42%, #010208 100%);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 999;
+        opacity: 1;
+        transition: opacity 1.5s ease;
+    }
+
+    .envelope-container {
+        position: relative;
+        cursor: pointer;
+        transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .envelope-container:hover {
+        transform: translateY(-12px) scale(1.03);
+    }
+
+    .envelope {
+        position: relative;
+        width: 340px;
+        height: 220px;
+        background: #fdfaf6;
+        border-radius: 12px;
+        box-shadow: 0 25px 60px rgba(0,0,0,0.6), 0 0 50px rgba(135,206,255,0.25);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+
+    /* 信封背面折叠线 */
+    .envelope::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: linear-gradient(to bottom right, transparent 49.5%, #e8e2d5 50%, #e8e2d5 50.5%, transparent 51%),
+                    linear-gradient(to bottom left, transparent 49.5%, #e8e2d5 50%, #e8e2d5 50.5%, transparent 51%);
+        pointer-events: none;
+    }
+
+    /* 信封上盖 */
+    .envelope-flap {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 65%;
+        background: linear-gradient(to bottom, #f7f3eb, #e8e2d5);
+        clip-path: polygon(0 0, 100% 0, 50% 100%);
+        transform-origin: top;
+        transition: transform 0.7s ease-in-out;
+        z-index: 2;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+
+    /* 悬停时信封盖打开 */
+    .envelope-container:hover .envelope-flap {
+        transform: rotateX(180deg);
+        z-index: 0;
+    }
+
+    /* 火漆印章 */
+    .wax-seal {
+        position: absolute;
+        top: 65%; left: 50%;
+        transform: translate(-50%, -50%);
+        width: 64px; height: 64px;
+        background: radial-gradient(circle at 30% 30%, #ff6666 0%, #cc0000 60%, #800000 100%);
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 6px 15px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.4);
+        z-index: 3;
+        font-size: 28px;
+        color: #ffcc00;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        transition: transform 0.6s ease;
+    }
+    .envelope-container:hover .wax-seal {
+        transform: translate(-50%, -50%) scale(1.1) rotate(15deg);
+    }
+
+    /* 【修改点】信封文字已经向下移动 */
+    .envelope-text {
+        position: absolute;
+        bottom: 12px;
+        font-family: "STXingkai", "Brush Script MT", "Snell Roundhand", cursive;
+        font-size: 32px;
+        color: #4a3b32;
+        z-index: 3;
+        letter-spacing: 3px;
+        text-shadow: 1px 1px 0px rgba(255,255,255,0.8);
+        transition: opacity 0.4s ease;
+    }
+    .envelope-container:hover .envelope-text {
+        opacity: 0;
+    }
+
+    .click-hint {
+        position: absolute;
+        bottom: -50px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: rgba(180, 220, 255, 0.7);
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 14px;
+        letter-spacing: 4px;
+        white-space: nowrap;
+        animation: pulse 2s infinite;
+        pointer-events: none;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 1; }
+    }
+</style>
+</head>
+<body>
+<!-- 信封遮罩层 -->
+<div id="envelope-overlay">
+    <div class="envelope-container" id="envelope">
+        <div class="envelope">
+            <div class="envelope-flap"></div>
+            <div class="wax-seal">🎄</div>
+            <div class="envelope-text">圣诞节快乐</div>
+        </div>
+        <div class="click-hint">轻触打开信件</div>
+    </div>
+</div>
+
+<div id="hint">拖动旋转 · 双指缩放 · Merry Christmas &#10052;</div>
+<div id="music-hint">♪ 点击页面播放音乐</div>
+<audio id="bgm" loop preload="auto">
+    <source src="./music.mp3" type="audio/mpeg">
+</audio>
+<div id="text-overlay">
+    <div class="title-text">Merry Christmas</div>
+    <div class="sub-text">圣诞快乐 · 2026</div>
+</div>
+
+<div id="left-text">
+    <span class="line">Waiting for the Christmas fireworks,</span>
+    <span class="line">waiting for you to walk toward me through the crowd</span>
+    <span class="sign">--you</span>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+// ===== 音乐控制 =====
+const bgm = document.getElementById('bgm');
+const musicHint = document.getElementById('music-hint');
+let musicStarted = false;
+
+// 开场动画结束后显示音乐提示（5.5秒后）
+setTimeout(() => { musicHint.style.opacity = '1'; }, 5500);
+
+function tryPlayMusic() {
+    if (musicStarted) return;
+    bgm.play().then(() => {
+        musicStarted = true;
+        musicHint.style.opacity = '0';
+    }).catch(() => {});
+}
+document.addEventListener('click', tryPlayMusic);
+document.addEventListener('touchstart', tryPlayMusic, { passive: true });
+/* ========== 缓动 ========== */
+const easeOutCubic  = t => 1 - Math.pow(1 - t, 3);
+const easeInOutQuad = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const easeInCubic   = t => t * t * t;
+
+/* ========== 0. 基础环境 ========== */
+const isMobile = /Mobi|Android|iPhone|iPad|iPod|HarmonyOS/i.test(navigator.userAgent);
+
+const scene = new THREE.Scene();
+
+scene.add(new THREE.AmbientLight(0x8fa8d8, 1.15));
+const keyLight = new THREE.DirectionalLight(0xfff2e2, 1.5);
+keyLight.position.set(8, 16, 10);
+scene.add(keyLight);
+const fillLight = new THREE.DirectionalLight(0x6f9bff, 0.7);
+fillLight.position.set(-10, 6, -8);
+scene.add(fillLight);
+
+scene.fog = new THREE.FogExp2(0x060e1f, 0.009);
+
+const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.1, 600);
+
+const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    alpha: true,
+    powerPreference: 'high-performance'
+});
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x000000, 0);
+document.body.appendChild(renderer.domElement);
+
+const PR = renderer.getPixelRatio();
+const timeUniform = { value: 0 };
+
+/* ========== 1. 贴图 ========== */
+function makeCircleTexture() {
+    const s = 64;
+    const c = document.createElement('canvas');
+    c.width = c.height = s;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.4, 'rgba(255,255,255,0.85)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, s, s);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+}
+const circleTex = makeCircleTexture();
+
+function makeStarTexture() {
+    const s = 256;
+    const c = document.createElement('canvas');
+    c.width = c.height = s;
+    const ctx = c.getContext('2d');
+    const cx = s/2, cy = s/2;
+
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, s/2);
+    g.addColorStop(0.00, 'rgba(255,255,255,1)');
+    g.addColorStop(0.10, 'rgba(235,248,255,0.95)');
+    g.addColorStop(0.28, 'rgba(155,215,255,0.45)');
+    g.addColorStop(0.60, 'rgba(85,155,255,0.10)');
+    g.addColorStop(1.00, 'rgba(40,100,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, s, s);
+
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 4; i++) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(i * Math.PI / 2);
+        const lg = ctx.createLinearGradient(0, 0, s * 0.5, 0);
+        lg.addColorStop(0.00, 'rgba(255,255,255,0.9)');
+        lg.addColorStop(0.18, 'rgba(210,240,255,0.5)');
+        lg.addColorStop(0.55, 'rgba(140,200,255,0.08)');
+        lg.addColorStop(1.00, 'rgba(100,170,255,0)');
+        ctx.fillStyle = lg;
+        ctx.beginPath();
+        ctx.moveTo(0, -7);
+        ctx.lineTo(s * 0.5, 0);
+        ctx.lineTo(0, 7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+}
+const starTex = makeStarTexture();
+
+/* ========== 2. 树的几何参数 ========== */
+const BASE_Y      = -5;
+const TREE_HEIGHT = 20;
+const BASE_RADIUS = 7.5;
+const SPIRALS     = 5;
+const TURNS       = 8;
+
+const TRUNK_HEIGHT    = 2.6;
+const TRUNK_RADIUS    = 0.75;
+const TRUNK_BOTTOM_Y  = BASE_Y - TRUNK_HEIGHT;
+const STAR_Y          = BASE_Y + TREE_HEIGHT + 1.3;
+
+/* ========== 3. 粒子着色器 ========== */
+const particleVert = /* glsl */`
+    attribute vec3  aColor;
+    attribute float aPhase;
+    attribute float aSize;
+    attribute float aTwinkle;
+
+    uniform float uTime;
+    uniform float uPixelRatio;
+
+    varying vec3  vColor;
+    varying float vAlpha;
+
+    void main() {
+        vColor = aColor;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+
+        float s  = 0.5 + 0.5 * sin(uTime * 2.4 + aPhase);
+        float tw = mix(1.0, 0.18 + 1.05 * s, aTwinkle);
+        vAlpha   = clamp(tw, 0.0, 1.0);
+
+        float size = aSize * uPixelRatio * (0.65 + 0.35 * s) * (110.0 / -mv.z);
+        gl_PointSize = min(size, 60.0);
+        gl_Position  = projectionMatrix * mv;
+    }
+`;
+
+const particleFrag = /* glsl */`
+    varying vec3  vColor;
+    varying float vAlpha;
+
+    void main() {
+        vec2 uv = gl_PointCoord - 0.5;
+        float d = length(uv);
+        if (d > 0.5) discard;
+        float a = smoothstep(0.5, 0.05, d);
+        gl_FragColor = vec4(vColor, a * vAlpha);
+        #include <colorspace_fragment>
+    }
+`;
+
+const particleMaterial = new THREE.ShaderMaterial({
+    vertexShader:   particleVert,
+    fragmentShader: particleFrag,
+    uniforms: {
+        uTime:       timeUniform,
+        uPixelRatio: { value: PR },
+    },
+    transparent: true,
+    depthWrite:  false,
+    blending:    THREE.AdditiveBlending,
+});
+
+function buildGeometry(posArr, colArr, phaseArr, sizeArr, twArr) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+    g.setAttribute('aColor',   new THREE.BufferAttribute(colArr, 3));
+    g.setAttribute('aPhase',   new THREE.BufferAttribute(phaseArr, 1));
+    g.setAttribute('aSize',    new THREE.BufferAttribute(sizeArr, 1));
+    g.setAttribute('aTwinkle', new THREE.BufferAttribute(twArr, 1));
+    return g;
+}
+
+/* ========== 4. 树主体 Group ========== */
+const treeGroup = new THREE.Group();
+scene.add(treeGroup);
+
+/* ========== 5. 树叶粒子 ========== */
+const FOLIAGE_COUNT = isMobile ? 5500 : 9000;
+
+const fPos = new Float32Array(FOLIAGE_COUNT * 3);
+const fCol = new Float32Array(FOLIAGE_COUNT * 3);
+const fPha = new Float32Array(FOLIAGE_COUNT);
+const fSiz = new Float32Array(FOLIAGE_COUNT);
+const fTwi = new Float32Array(FOLIAGE_COUNT);
+
+const colLow  = new THREE.Color(0x0a1a3a);
+const colMid  = new THREE.Color(0x3a7bd5);
+const colHigh = new THREE.Color(0xcfe6ff);
+const colAcc  = new THREE.Color(0xffffff);
+const colAcc2 = new THREE.Color(0x7ee8fa);
+const tmpColor = new THREE.Color();
+
+for (let i = 0; i < FOLIAGE_COUNT; i++) {
+    const onSpiral = Math.random() < 0.66;
+    let t, angle;
+
+    if (onSpiral) {
+        t = Math.pow(Math.random(), 0.9);
+        const idx   = Math.floor(Math.random() * SPIRALS);
+        const shift = (idx / SPIRALS) * Math.PI * 2;
+        angle = t * TURNS * Math.PI * 2 + shift + (Math.random() - 0.5) * 0.28;
+    } else {
+        t = Math.pow(Math.random(), 0.85);
+        angle = Math.random() * Math.PI * 2;
+    }
+
+    const y = BASE_Y + t * TREE_HEIGHT;
+    const radiusAtT = BASE_RADIUS * Math.pow(1 - t, 1.06);
+
+    let r;
+    if (onSpiral) {
+        r = radiusAtT * (0.90 + Math.random() * 0.14);
+    } else {
+        r = radiusAtT * Math.sqrt(Math.random()) * 1.02;
+    }
+    if (t > 0.95) r *= 0.45;
+
+    fPos[i*3]     = Math.cos(angle) * r;
+    fPos[i*3 + 1] = y + (Math.random() - 0.5) * 0.4;
+    fPos[i*3 + 2] = Math.sin(angle) * r;
+
+    if (t < 0.5) {
+        tmpColor.copy(colLow).lerp(colMid, t / 0.5);
+    } else {
+        tmpColor.copy(colMid).lerp(colHigh, (t - 0.5) / 0.5);
+    }
+    const rnd = Math.random();
+    if (rnd < 0.05) tmpColor.lerp(colAcc, 0.85);
+    else if (rnd < 0.09) tmpColor.lerp(colAcc2, 0.75);
+
+    tmpColor.multiplyScalar(0.55 + Math.random() * 0.45);
+
+    fCol[i*3]     = tmpColor.r;
+    fCol[i*3 + 1] = tmpColor.g;
+    fCol[i*3 + 2] = tmpColor.b;
+
+    fPha[i] = Math.random() * Math.PI * 2;
+    fSiz[i] = 0.85 + Math.random() * 1.15;
+    fTwi[i] = 0.12;
+}
+
+treeGroup.add(new THREE.Points(
+    buildGeometry(fPos, fCol, fPha, fSiz, fTwi),
+    particleMaterial
+));
+
+/* ========== 6. 彩灯 ========== */
+const LIGHT_COUNT = isMobile ? 160 : 280;
+
+const lPos = new Float32Array(LIGHT_COUNT * 3);
+const lCol = new Float32Array(LIGHT_COUNT * 3);
+const lPha = new Float32Array(LIGHT_COUNT);
+const lSiz = new Float32Array(LIGHT_COUNT);
+const lTwi = new Float32Array(LIGHT_COUNT);
+
+const LIGHT_PALETTE = [
+    0xffffff, 0x88ddff, 0x4aa8ff, 0xa0f0e8,
+    0xd0e8ff, 0xe8f4ff, 0x2a6fdb, 0x2ef2cf,
+];
+
+for (let i = 0; i < LIGHT_COUNT; i++) {
+    const t = Math.pow(Math.random(), 0.82);
+    const y = BASE_Y + t * TREE_HEIGHT * 0.97;
+
+    const radiusAtT = BASE_RADIUS * Math.pow(1 - t, 1.06);
+    const idx   = Math.floor(Math.random() * SPIRALS);
+    const shift = (idx / SPIRALS) * Math.PI * 2;
+    const angle = t * TURNS * Math.PI * 2 + shift + (Math.random() - 0.5) * 0.18;
+    const r     = radiusAtT * (0.97 + Math.random() * 0.10);
+
+    lPos[i*3]     = Math.cos(angle) * r;
+    lPos[i*3 + 1] = y;
+    lPos[i*3 + 2] = Math.sin(angle) * r;
+
+    tmpColor.setHex(LIGHT_PALETTE[Math.floor(Math.random() * LIGHT_PALETTE.length)]);
+    lCol[i*3]     = tmpColor.r;
+    lCol[i*3 + 1] = tmpColor.g;
+    lCol[i*3 + 2] = tmpColor.b;
+
+    lPha[i] = Math.random() * Math.PI * 2;
+    lSiz[i] = 2.6 + Math.random() * 2.4;
+    lTwi[i] = 1.0;
+}
+
+treeGroup.add(new THREE.Points(
+    buildGeometry(lPos, lCol, lPha, lSiz, lTwi),
+    particleMaterial
+));
+
+/* ========== 6.5 青绿色星尘瀑布 ========== */
+const BAND_COUNT = 2;
+const POINTS_PER_BAND = isMobile ? 400 : 800;
+const bandTotalCount = BAND_COUNT * POINTS_PER_BAND;
+
+const bandPos = new Float32Array(bandTotalCount * 3);
+const bandCol = new Float32Array(bandTotalCount * 3);
+const bandPhase = new Float32Array(bandTotalCount);
+const bandOffset = new Float32Array(bandTotalCount);
+
+const CYAN_GREEN_COLORS = [0x00ffff, 0x2ef2cf, 0x00ffaa, 0xa0f0e8];
+
+for (let b = 0; b < BAND_COUNT; b++) {
+    const shift = (b / BAND_COUNT) * Math.PI * 2;
+    for (let i = 0; i < POINTS_PER_BAND; i++) {
+        const idx = b * POINTS_PER_BAND + i;
+        bandPos[idx*3] = 0;
+        bandPos[idx*3+1] = 0;
+        bandPos[idx*3+2] = 0;
+        if (Math.random() < 0.85) {
+            tmpColor.setHex(CYAN_GREEN_COLORS[Math.floor(Math.random() * CYAN_GREEN_COLORS.length)]);
+        } else {
+            tmpColor.setHex(0x00ffcc);
+        }
+        tmpColor.multiplyScalar(2.5);
+        bandCol[idx*3] = tmpColor.r;
+        bandCol[idx*3+1] = tmpColor.g;
+        bandCol[idx*3+2] = tmpColor.b;
+        bandPhase[idx] = shift + (Math.random() - 0.5) * 0.15;
+        bandOffset[idx] = Math.random();
+    }
+}
+
+const bandGeo = new THREE.BufferGeometry();
+bandGeo.setAttribute('position', new THREE.BufferAttribute(bandPos, 3));
+bandGeo.setAttribute('aColor', new THREE.BufferAttribute(bandCol, 3));
+bandGeo.setAttribute('aPhase', new THREE.BufferAttribute(bandPhase, 1));
+bandGeo.setAttribute('aOffset', new THREE.BufferAttribute(bandOffset, 1));
+
+const bandVert = /* glsl */`
+    attribute vec3 aColor;
+    attribute float aPhase;
+    attribute float aOffset;
+
+    uniform float uTime;
+    uniform float uPixelRatio;
+    uniform float uBaseY;
+    uniform float uStarY;
+    uniform float uBaseRadius;
+
+    varying vec3 vColor;
+    varying float vAlpha;
+
+    void main() {
+        vColor = aColor;
+        float speed = 0.015;
+        float p = fract(1.0 - (uTime * speed + aOffset));
+        float y = mix(uBaseY, uStarY, p);
+        float r = 0.5 + (uBaseRadius + 4.0) * pow(1.0 - p, 1.06);
+        float angle = p * 6.0 * 3.14159 * 2.0 + aPhase;
+        vec3 pos = vec3(cos(angle) * r, y, sin(angle) * r);
+        float fadeTop = smoothstep(1.0, 0.95, p);
+        float fadeBottom = smoothstep(0.0, 0.1, p);
+        float twinkle = 0.6 + 0.4 * sin(uTime * 5.0 + aPhase * 20.0);
+        vAlpha = fadeTop * fadeBottom * twinkle;
+        vec4 mv = modelViewMatrix * vec4(pos, 1.0);
+        gl_PointSize = 2.2 * uPixelRatio * (110.0 / -mv.z);
+        gl_Position = projectionMatrix * mv;
+    }
+`;
+
+const bandMat = new THREE.ShaderMaterial({
+    vertexShader: bandVert,
+    fragmentShader: particleFrag,
+    uniforms: {
+        uTime: timeUniform,
+        uPixelRatio: { value: PR },
+        uBaseY: { value: BASE_Y },
+        uStarY: { value: STAR_Y },
+        uBaseRadius: { value: BASE_RADIUS }
+    },
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+});
+
+const bandPoints = new THREE.Points(bandGeo, bandMat);
+bandPoints.visible = false;
+treeGroup.add(bandPoints);
+
+/* ========== 6.6 树脚积雪 ========== */
+const snowGroup = new THREE.Group();
+snowGroup.visible = false;
+scene.add(snowGroup);
+
+const GROUND_SNOW_COUNT = isMobile ? 900 : 1500;
+
+const gsPos = new Float32Array(GROUND_SNOW_COUNT * 3);
+const gsCol = new Float32Array(GROUND_SNOW_COUNT * 3);
+const gsPha = new Float32Array(GROUND_SNOW_COUNT);
+const gsSiz = new Float32Array(GROUND_SNOW_COUNT);
+const gsTwi = new Float32Array(GROUND_SNOW_COUNT);
+
+const colSnowCore = new THREE.Color(0xffffff);
+const colSnowEdge = new THREE.Color(0x9dc4ff);
+
+for (let i = 0; i < GROUND_SNOW_COUNT; i++) {
+    const t = Math.random();
+    const r = 0.5 + Math.pow(t, 0.7) * 17.0;
+    const angle = Math.random() * Math.PI * 2;
+    const mound = Math.pow(t, 1.6) * 1.2;
+    const y = TRUNK_BOTTOM_Y - 0.02 + Math.random() * mound + Math.random() * 0.06;
+
+    gsPos[i*3]     = Math.cos(angle) * r;
+    gsPos[i*3 + 1] = y;
+    gsPos[i*3 + 2] = Math.sin(angle) * r;
+
+    tmpColor.copy(colSnowCore).lerp(colSnowEdge, t * 0.55);
+    tmpColor.multiplyScalar(0.55 + Math.random() * 0.35);
+
+    gsCol[i*3]     = tmpColor.r;
+    gsCol[i*3 + 1] = tmpColor.g;
+    gsCol[i*3 + 2] = tmpColor.b;
+
+    gsPha[i] = Math.random() * Math.PI * 2;
+    gsSiz[i] = 1.4 + Math.random() * 2.2;
+    gsTwi[i] = 0.18;
+}
+
+snowGroup.add(new THREE.Points(
+    buildGeometry(gsPos, gsCol, gsPha, gsSiz, gsTwi),
+    particleMaterial
+));
+
+const SWIRL_SNOW_COUNT = isMobile ? 300 : 520;
+
+const swPos = new Float32Array(SWIRL_SNOW_COUNT * 3);
+const swCol = new Float32Array(SWIRL_SNOW_COUNT * 3);
+const swPha = new Float32Array(SWIRL_SNOW_COUNT);
+const swSiz = new Float32Array(SWIRL_SNOW_COUNT);
+const swTwi = new Float32Array(SWIRL_SNOW_COUNT);
+const swAng = new Float32Array(SWIRL_SNOW_COUNT);
+const swRad = new Float32Array(SWIRL_SNOW_COUNT);
+const swY   = new Float32Array(SWIRL_SNOW_COUNT);
+const swSpd = new Float32Array(SWIRL_SNOW_COUNT);
+const swRot = new Float32Array(SWIRL_SNOW_COUNT);
+
+const SWIRL_TOP_Y = BASE_Y + TREE_HEIGHT * 0.85;
+const SWIRL_BOT_Y = TRUNK_BOTTOM_Y - 0.5;
+
+for (let i = 0; i < SWIRL_SNOW_COUNT; i++) {
+    const r = 1.5 + Math.random() * 12.0;
+    const angle = Math.random() * Math.PI * 2;
+    const y = SWIRL_BOT_Y + Math.random() * (SWIRL_TOP_Y - SWIRL_BOT_Y);
+
+    swAng[i] = angle;
+    swRad[i] = r;
+    swY[i]   = y;
+    swSpd[i] = 0.6 + Math.random() * 1.5;
+    swRot[i] = (0.15 + Math.random() * 0.25) * (Math.random() < 0.5 ? -1 : 1);
+
+    swPos[i*3]     = Math.cos(angle) * r;
+    swPos[i*3 + 1] = y;
+    swPos[i*3 + 2] = Math.sin(angle) * r;
+
+    tmpColor.copy(colSnowCore).lerp(colSnowEdge, Math.random() * 0.4);
+    tmpColor.multiplyScalar(0.7 + Math.random() * 0.3);
+    swCol[i*3]     = tmpColor.r;
+    swCol[i*3 + 1] = tmpColor.g;
+    swCol[i*3 + 2] = tmpColor.b;
+
+    swPha[i] = Math.random() * Math.PI * 2;
+    swSiz[i] = 1.6 + Math.random() * 2.0;
+    swTwi[i] = 0.5;
+}
+
+const swirlGeo = new THREE.BufferGeometry();
+swirlGeo.setAttribute('position', new THREE.BufferAttribute(swPos, 3));
+swirlGeo.setAttribute('aColor',   new THREE.BufferAttribute(swCol, 3));
+swirlGeo.setAttribute('aPhase',   new THREE.BufferAttribute(swPha, 1));
+swirlGeo.setAttribute('aSize',    new THREE.BufferAttribute(swSiz, 1));
+swirlGeo.setAttribute('aTwinkle', new THREE.BufferAttribute(swTwi, 1));
+
+const swirlPoints = new THREE.Points(swirlGeo, particleMaterial);
+swirlPoints.frustumCulled = false;
+snowGroup.add(swirlPoints);
+
+function updateSwirlSnow(dt) {
+    for (let i = 0; i < SWIRL_SNOW_COUNT; i++) {
+        swY[i] -= swSpd[i] * dt;
+        if (swY[i] < SWIRL_BOT_Y) {
+            swY[i] = SWIRL_TOP_Y;
+            swRad[i] = 1.5 + Math.random() * 12.0;
+        }
+        swAng[i] += swRot[i] * dt;
+        const wobble = Math.sin(elapsed * 0.8 + swPha[i]) * 0.35;
+        const r = swRad[i] + wobble;
+
+        swPos[i*3]     = Math.cos(swAng[i]) * r;
+        swPos[i*3 + 1] = swY[i];
+        swPos[i*3 + 2] = Math.sin(swAng[i]) * r;
+    }
+    swirlGeo.attributes.position.needsUpdate = true;
+}
+
+/* ========== 6.7 烟花系统 ========== */
+const FIREWORK_MAX = isMobile ? 5 : 9;
+const FIREWORK_PARTICLES = isMobile ? 120 : 200;
+const FIREWORK_PALETTE = [
+    0xffffff, 0xffffff, 0x88ccff,
+    0x4488ff, 0x0044ff, 0xffff00,
+    0xffdd00, 0xffffff
+];
+
+class Firework {
+    constructor() {
+        this.active = false;
+        this.state = 'idle';
+        this.x = 0; this.y = 0; this.z = 0;
+        this.vx = 0; this.vy = 0; this.vz = 0;
+        this.targetY = 0;
+        this.color = new THREE.Color();
+        this.particles = [];
+        this.timer = 0;
+    }
+
+    launch() {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        this.x = side * (BASE_RADIUS * 1.5 + Math.random() * 4);
+        this.y = TREE_HEIGHT * 0.8 + BASE_Y;
+        this.z = (Math.random() - 0.5) * 6;
+        this.vx = (Math.random() - 0.5) * 2;
+        this.vy = 18 + Math.random() * 8;
+        this.vz = (Math.random() - 0.5) * 2;
+        this.targetY = STAR_Y + 3 + Math.random() * 8;
+        this.color.setHex(FIREWORK_PALETTE[Math.floor(Math.random() * FIREWORK_PALETTE.length)]);
+        this.active = true;
+        this.state = 'rising';
+        this.timer = 0;
+        this.particles = [];
+    }
+
+    update(dt) {
+        if (!this.active) return;
+
+        if (this.state === 'rising') {
+            this.x += this.vx * dt;
+            this.y += this.vy * dt;
+            this.z += this.vz * dt;
+            this.vy -= 12 * dt;
+
+            if (this.vy <= 0 || this.y >= this.targetY) {
+                this.explode();
+            }
+        } else if (this.state === 'exploding') {
+            this.timer += dt;
+            for (let p of this.particles) {
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.z += p.vz * dt;
+                p.vy -= 8 * dt;
+                p.life -= dt;
+            }
+            this.particles = this.particles.filter(p => p.life > 0);
+            if (this.particles.length === 0) {
+                this.active = false;
+                this.state = 'idle';
+            }
+        }
+    }
+
+    explode() {
+        this.state = 'exploding';
+        this.timer = 0;
+        const whiteMix = Math.random() * 0.3;
+        const baseColor = new THREE.Color().copy(this.color).lerp(new THREE.Color(0xffffff), whiteMix);
+
+        for (let i = 0; i < FIREWORK_PARTICLES; i++) {
+            const speed = 6.0 + Math.random() * 10.0;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            this.particles.push({
+                x: this.x, y: this.y, z: this.z,
+                vx: speed * Math.sin(phi) * Math.cos(theta),
+                vy: speed * Math.sin(phi) * Math.sin(theta),
+                vz: speed * Math.cos(phi),
+                life: 1.5 + Math.random() * 1.0,
+                size: 2.2 + Math.random() * 3.0,
+                color: new THREE.Color().copy(baseColor)
+            });
+        }
+    }
+}
+
+const fireworks = [];
+for (let i = 0; i < FIREWORK_MAX; i++) {
+    fireworks.push(new Firework());
+}
+
+let fireworkTimer = 0;
+let fireworkActive = false;
+
+function updateFireworks(dt) {
+    if (!fireworkActive) return;
+
+    fireworkTimer += dt;
+    if (fireworkTimer > 1.2) {
+        fireworkTimer = 0;
+        const idle = fireworks.find(f => !f.active);
+        if (idle) idle.launch();
+    }
+
+    for (let f of fireworks) {
+        f.update(dt);
+    }
+}
+
+const fwGeo = new THREE.BufferGeometry();
+const fwMaxParticles = FIREWORK_MAX * FIREWORK_PARTICLES;
+const fwPosArr = new Float32Array(fwMaxParticles * 3);
+const fwColArr = new Float32Array(fwMaxParticles * 3);
+const fwSizeArr = new Float32Array(fwMaxParticles);
+const fwAlphaArr = new Float32Array(fwMaxParticles);
+
+fwGeo.setAttribute('position', new THREE.BufferAttribute(fwPosArr, 3));
+fwGeo.setAttribute('aColor', new THREE.BufferAttribute(fwColArr, 3));
+fwGeo.setAttribute('aSize', new THREE.BufferAttribute(fwSizeArr, 1));
+fwGeo.setAttribute('aAlpha', new THREE.BufferAttribute(fwAlphaArr, 1));
+
+const fwMat = new THREE.ShaderMaterial({
+    vertexShader: /* glsl */`
+        attribute vec3 aColor;
+        attribute float aSize;
+        attribute float aAlpha;
+        uniform float uPixelRatio;
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+            vColor = aColor;
+            vAlpha = aAlpha;
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = aSize * uPixelRatio * (110.0 / -mv.z);
+            gl_Position = projectionMatrix * mv;
+        }
+    `,
+    fragmentShader: /* glsl */`
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+            vec2 uv = gl_PointCoord - 0.5;
+            float d = length(uv);
+            if (d > 0.5) discard;
+            float a = smoothstep(0.5, 0.05, d);
+            gl_FragColor = vec4(vColor, a * vAlpha);
+            #include <colorspace_fragment>
+        }
+    `,
+    uniforms: { uPixelRatio: { value: PR } },
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+});
+
+const fireworkPoints = new THREE.Points(fwGeo, fwMat);
+fireworkPoints.frustumCulled = false;
+scene.add(fireworkPoints);
+
+function renderFireworks() {
+    let idx = 0;
+    for (let f of fireworks) {
+        if (!f.active) continue;
+
+        if (f.state === 'rising') {
+            if (idx < fwMaxParticles) {
+                fwPosArr[idx*3] = f.x;
+                fwPosArr[idx*3+1] = f.y;
+                fwPosArr[idx*3+2] = f.z;
+                fwColArr[idx*3] = f.color.r;
+                fwColArr[idx*3+1] = f.color.g;
+                fwColArr[idx*3+2] = f.color.b;
+                fwSizeArr[idx] = 4.0;
+                fwAlphaArr[idx] = 1.0;
+                idx++;
+            }
+        } else if (f.state === 'exploding') {
+            for (let p of f.particles) {
+                if (idx >= fwMaxParticles) break;
+                fwPosArr[idx*3] = p.x;
+                fwPosArr[idx*3+1] = p.y;
+                fwPosArr[idx*3+2] = p.z;
+                fwColArr[idx*3] = p.color.r;
+                fwColArr[idx*3+1] = p.color.g;
+                fwColArr[idx*3+2] = p.color.b;
+                fwSizeArr[idx] = p.size;
+                fwAlphaArr[idx] = Math.max(0, p.life / 2.5);
+                idx++;
+            }
+        }
+    }
+    for (let i = idx; i < fwMaxParticles; i++) {
+        fwAlphaArr[i] = 0;
+    }
+    fwGeo.attributes.position.needsUpdate = true;
+    fwGeo.attributes.aColor.needsUpdate = true;
+    fwGeo.attributes.aSize.needsUpdate = true;
+    fwGeo.attributes.aAlpha.needsUpdate = true;
+}
+
+/* ========== 6.8 礼物盒 ========== */
+const giftGroup = new THREE.Group();
+giftGroup.visible = false;
+scene.add(giftGroup);
+
+const giftBoxes = [];
+
+function makeBoxMesh(w, h, d) {
+    const geo = new THREE.BoxGeometry(w, h, d, 6, 4, 6);
+    const pos = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        const k = 1 + 0.035 * Math.sin(v.x * 3.1) * Math.sin(v.y * 2.7) * Math.sin(v.z * 3.4);
+        v.multiplyScalar(k);
+        pos.setXYZ(i, v.x, v.y, v.z);
+    }
+    geo.computeVertexNormals();
+
+    return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+        color: 0xc2544f,
+        roughness: 0.72,
+        metalness: 0.04,
+        emissive: 0x2a0d10,
+        emissiveIntensity: 0.35,
+    }));
+}
+
+function makeRibbon(w, h, d, t) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({
+        color: 0xf2ede6,
+        roughness: 0.55,
+        metalness: 0.02,
+        emissive: 0x3a3630,
+        emissiveIntensity: 0.25,
+    });
+    const a = new THREE.Mesh(new THREE.BoxGeometry(t, h * 1.015, d * 1.015), mat);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w * 1.015, h * 1.015, t), mat);
+    const c = new THREE.Mesh(new THREE.BoxGeometry(w * 1.015, t * 1.6, d * 1.015), mat);
+    g.add(a, b, c);
+    return g;
+}
+
+function makeBow(scale) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({
+        color: 0xeae3da,
+        roughness: 0.5,
+        metalness: 0.02,
+        emissive: 0x3a3630,
+        emissiveIntensity: 0.3,
+    });
+    const loopGeo = new THREE.TorusGeometry(0.34, 0.075, 8, 18, Math.PI * 1.35);
+    const l1 = new THREE.Mesh(loopGeo, mat);
+    const l2 = new THREE.Mesh(loopGeo, mat);
+    l1.position.set(-0.34, 0.05, 0);
+    l1.rotation.set(0, 0, Math.PI * 0.5 + 0.25);
+    l2.position.set(0.34, 0.05, 0);
+    l2.rotation.set(0, 0, Math.PI * 0.5 - 0.25);
+    l2.scale.setScalar(-1);
+    const knot = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), mat);
+    knot.scale.set(1, 0.75, 1);
+    const t1 = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.5, 0.04), mat);
+    const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.42, 0.04), mat);
+    t1.position.set(-0.1, -0.42, 0.05); t1.rotation.set(0.3, 0.2, 0.35);
+    t2.position.set(0.12, -0.38, -0.04); t2.rotation.set(-0.2, -0.3, -0.3);
+    g.add(l1, l2, knot, t1, t2);
+    g.scale.setScalar(scale);
+    return g;
+}
+
+const GIFT_COUNT = isMobile ? 18 : 36;
+
+for (let i = 0; i < GIFT_COUNT; i++) {
+    const r = 2.5 + Math.random() * 6.0;
+    const a = Math.random() * Math.PI * 2;
+    const w = 0.7 + Math.random() * 1.2;
+    const h = 0.5 + Math.random() * 1.0;
+    const d = 0.7 + Math.random() * 1.2;
+
+    const holder = new THREE.Group();
+    holder.add(makeBoxMesh(w, h, d));
+    holder.add(makeRibbon(w, h, d, Math.min(w, d) * 0.11));
+
+    const bow = makeBow(Math.min(w, d) * 0.42);
+    bow.position.set(0, h * 0.5 + 0.05, 0);
+    holder.add(bow);
+
+    holder.position.set(
+        Math.cos(a) * r,
+        TRUNK_BOTTOM_Y - 0.18 + h * 0.5,
+        Math.sin(a) * r
+    );
+    holder.rotation.y = -a + (Math.random() - 0.5) * 0.5;
+    holder.rotation.z = (Math.random() - 0.5) * 0.06;
+
+    giftGroup.add(holder);
+    giftBoxes.push({
+        holder,
+        baseY: holder.position.y,
+        phase: Math.random() * Math.PI * 2,
+        bob: 0.03 + Math.random() * 0.04,
+        rotSpeed: (Math.random() - 0.5) * 0.04,
+    });
+}
+
+const giftLight = new THREE.PointLight(0xffd9c4, 14, 26, 2);
+giftLight.position.set(0, TRUNK_BOTTOM_Y + 2.5, 0);
+giftGroup.add(giftLight);
+
+function updateGifts(dt) {
+    for (const g of giftBoxes) {
+        g.holder.position.y = g.baseY + Math.sin(elapsed * 0.9 + g.phase) * g.bob;
+        g.holder.rotation.y += g.rotSpeed * dt;
+    }
+    giftLight.intensity = 12 + Math.sin(elapsed * 1.7) * 2.5;
+}
+
+/* ========== 7. 树干 ========== */
+const TRUNK_COUNT = isMobile ? 400 : 700;
+
+const tPos = new Float32Array(TRUNK_COUNT * 3);
+const tCol = new Float32Array(TRUNK_COUNT * 3);
+const tPha = new Float32Array(TRUNK_COUNT);
+const tSiz = new Float32Array(TRUNK_COUNT);
+const tTwi = new Float32Array(TRUNK_COUNT);
+
+const colTrunkDark  = new THREE.Color(0x1a0f08);
+const colTrunkLight = new THREE.Color(0x7a5236);
+const colTrunkEdge  = new THREE.Color(0x3a2418);
+
+for (let i = 0; i < TRUNK_COUNT; i++) {
+    const t = Math.random();
+    const y = TRUNK_BOTTOM_Y + t * (BASE_Y + 0.6 - TRUNK_BOTTOM_Y);
+    const angle = Math.random() * Math.PI * 2;
+    const surface = Math.random() < 0.6;
+    const r = TRUNK_RADIUS * (surface ? (0.92 + Math.random() * 0.1) : Math.random());
+    const bend = Math.sin(t * Math.PI) * 0.15;
+
+    tPos[i*3]     = Math.cos(angle) * r + bend;
+    tPos[i*3 + 1] = y;
+    tPos[i*3 + 2] = Math.sin(angle) * r;
+
+    const brightness = (surface ? 0.7 : 0.35) + t * 0.3 + Math.random() * 0.2;
+    tmpColor.copy(colTrunkEdge).lerp(colTrunkLight, brightness);
+    if (Math.random() < 0.15) tmpColor.copy(colTrunkDark);
+
+    tCol[i*3]     = tmpColor.r;
+    tCol[i*3 + 1] = tmpColor.g;
+    tCol[i*3 + 2] = tmpColor.b;
+
+    tPha[i] = Math.random() * Math.PI * 2;
+    tSiz[i] = 1.1 + Math.random() * 1.3;
+    tTwi[i] = 0.05;
+}
+
+treeGroup.add(new THREE.Points(
+    buildGeometry(tPos, tCol, tPha, tSiz, tTwi),
+    particleMaterial
+));
+
+/* ========== 8. 树顶星星 ========== */
+const starMat = new THREE.SpriteMaterial({
+    map: starTex,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+});
+const starSprite = new THREE.Sprite(starMat);
+starSprite.scale.set(8, 8, 1);
+starSprite.position.set(0, STAR_Y, 0);
+treeGroup.add(starSprite);
+
+const haloMat = new THREE.SpriteMaterial({
+    map: starTex,
+    color: 0x88ccff,
+    transparent: true,
+    opacity: 0.55,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+});
+const haloSprite = new THREE.Sprite(haloMat);
+haloSprite.scale.set(20, 20, 1);
+haloSprite.position.set(0, STAR_Y, 0);
+treeGroup.add(haloSprite);
+
+/* ========== 9. 地面光晕 ========== */
+function makeGroundTexture() {
+    const s = 256;
+    const c = document.createElement('canvas');
+    c.width = c.height = s;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+    g.addColorStop(0.00, 'rgba(120,190,255,0.50)');
+    g.addColorStop(0.25, 'rgba(50,120,220,0.24)');
+    g.addColorStop(0.60, 'rgba(20,60,140,0.06)');
+    g.addColorStop(1.00, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, s, s);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+}
+
+const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(42, 42),
+    new THREE.MeshBasicMaterial({
+        map: makeGroundTexture(),
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        opacity: 0.85,
+    })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = TRUNK_BOTTOM_Y + 0.02;
+scene.add(ground);
+
+/* ========== 10. 远处飘雪 ========== */
+const SNOW_COUNT = isMobile ? 450 : 850;
+
+const sPos = new Float32Array(SNOW_COUNT * 3);
+const sSpd = new Float32Array(SNOW_COUNT);
+const sPha = new Float32Array(SNOW_COUNT);
+
+for (let i = 0; i < SNOW_COUNT; i++) {
+    sPos[i*3]     = (Math.random() - 0.5) * 80;
+    sPos[i*3 + 1] = Math.random() * 55;
+    sPos[i*3 + 2] = (Math.random() - 0.5) * 80;
+    sSpd[i] = 0.5 + Math.random() * 1.6;
+    sPha[i] = Math.random() * Math.PI * 2;
+}
+
+const snowGeo = new THREE.BufferGeometry();
+snowGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
+snowGeo.setAttribute('aSpeed',   new THREE.BufferAttribute(sSpd, 1));
+snowGeo.setAttribute('aPhase',   new THREE.BufferAttribute(sPha, 1));
+
+const snowMat = new THREE.ShaderMaterial({
+    uniforms: {
+        uTime:       timeUniform,
+        uPixelRatio: { value: PR },
+    },
+    vertexShader: /* glsl */`
+        attribute float aSpeed;
+        attribute float aPhase;
+        uniform float uTime;
+        uniform float uPixelRatio;
+        varying float vAlpha;
+
+        void main() {
+            vec3 p = position;
+            p.y = mod(p.y - uTime * aSpeed * 3.0, 55.0) - 8.0;
+            p.x += sin(uTime * 0.55 + aPhase) * 2.2;
+            p.z += cos(uTime * 0.48 + aPhase) * 2.2;
+
+            vec4 mv = modelViewMatrix * vec4(p, 1.0);
+            gl_PointSize = (1.6 + aSpeed * 1.1) * uPixelRatio * (95.0 / -mv.z);
+            gl_Position  = projectionMatrix * mv;
+            vAlpha = 0.30 + 0.45 * (0.5 + 0.5 * sin(uTime * 1.6 + aPhase));
+        }
+    `,
+    fragmentShader: /* glsl */`
+        varying float vAlpha;
+        void main() {
+            vec2 uv = gl_PointCoord - 0.5;
+            float d = length(uv);
+            if (d > 0.5) discard;
+            float a = smoothstep(0.5, 0.1, d);
+            gl_FragColor = vec4(0.86, 0.94, 1.0, a * vAlpha);
+            #include <colorspace_fragment>
+        }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+});
+
+const snow = new THREE.Points(snowGeo, snowMat);
+snow.frustumCulled = false;
+scene.add(snow);
+
+/* ========== 11. 星空 ========== */
+const BG_COUNT = isMobile ? 500 : 850;
+const bgPos = new Float32Array(BG_COUNT * 3);
+const bgCol = new Float32Array(BG_COUNT * 3);
+
+for (let i = 0; i < BG_COUNT; i++) {
+    const r     = 95 + Math.random() * 90;
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+
+    bgPos[i*3]     = r * Math.sin(phi) * Math.cos(theta);
+    bgPos[i*3 + 1] = r * Math.cos(phi) * 0.55 + 12;
+    bgPos[i*3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+
+    const b = 0.25 + Math.random() * 0.75;
+    bgCol[i*3]     = b * (0.72 + Math.random() * 0.28);
+    bgCol[i*3 + 1] = b * (0.85 + Math.random() * 0.15);
+    bgCol[i*3 + 2] = b;
+}
+
+const bgGeo = new THREE.BufferGeometry();
+bgGeo.setAttribute('position', new THREE.BufferAttribute(bgPos, 3));
+bgGeo.setAttribute('color',    new THREE.BufferAttribute(bgCol, 3));
+
+const bgStars = new THREE.Points(bgGeo, new THREE.PointsMaterial({
+    size: 1.1,
+    map: circleTex,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+}));
+scene.add(bgStars);
+
+/* ========== 12. 开场动画 ========== */
+function createOrb(color, size) {
+    const group = new THREE.Group();
+
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: starTex,
+        color: color,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.65,
+    }));
+    glow.scale.setScalar(size * 3.2);
+    group.add(glow);
+
+    const core = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: starTex,
+        color: 0xffffff,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.95,
+    }));
+    core.scale.setScalar(size);
+    group.add(core);
+
+    scene.add(group);
+    return { group, glow, core };
+}
+
+const orb1 = createOrb(0x88ddff, 1.9);
+const orb2 = createOrb(0xffffff, 1.9);
+const orb3 = createOrb(0x88ddff, 1.9);
+const orb4 = createOrb(0xffffff, 1.9);
+
+function createTrail(color, length) {
+    const geo = new THREE.BufferGeometry();
+    const pos   = new Float32Array(length * 3);
+    const alpha = new Float32Array(length);
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('aAlpha',   new THREE.BufferAttribute(alpha, 1));
+
+    const mat = new THREE.ShaderMaterial({
+        uniforms: {
+            uColor:      { value: new THREE.Color(color) },
+            uPixelRatio: { value: PR },
+        },
+        vertexShader: /* glsl */`
+            attribute float aAlpha;
+            varying float vAlpha;
+            uniform float uPixelRatio;
+            void main() {
+                vAlpha = aAlpha;
+                vec4 mv = modelViewMatrix * vec4(position, 1.0);
+                gl_PointSize = 3.0 * uPixelRatio * aAlpha * (90.0 / -mv.z);
+                gl_Position  = projectionMatrix * mv;
+            }
+        `,
+        fragmentShader: /* glsl */`
+            uniform vec3 uColor;
+            varying float vAlpha;
+            void main() {
+                vec2 uv = gl_PointCoord - 0.5;
+                float d = length(uv);
+                if (d > 0.5) discard;
+                float a = smoothstep(0.5, 0.0, d);
+                gl_FragColor = vec4(uColor, a * vAlpha);
+                #include <colorspace_fragment>
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+    });
+
+    const points = new THREE.Points(geo, mat);
+    points.frustumCulled = false;
+    scene.add(points);
+    return { geo, pos, alpha, points, length };
+}
+
+const trail1 = createTrail(0x88ddff, 22);
+const trail2 = createTrail(0xffffff, 22);
+const trail3 = createTrail(0x88ddff, 22);
+const trail4 = createTrail(0xffffff, 22);
+
+function computeSpiral(u, phase) {
+    const angle = u * Math.PI * 3.5 + phase;
+    const y = BASE_Y + 1.2 + u * (STAR_Y - BASE_Y - 2.4);
+    const radius = (BASE_RADIUS + 5) * (1 - u * 0.82);
+    return new THREE.Vector3(
+        Math.cos(angle) * radius,
+        y,
+        Math.sin(angle) * radius
+    );
+}
+
+function orbPosition(p, phase) {
+    if (p < 0.2) {
+        const t = p / 0.2;
+        const ease = easeInOutQuad(t);
+        const startR = 42;
+        const startY = BASE_Y + 12;
+        const start = new THREE.Vector3(
+            Math.cos(phase) * startR,
+            startY,
+            Math.sin(phase) * startR
+        );
+        const enter = computeSpiral(0, phase);
+        return start.lerp(enter, ease);
+    } else if (p < 0.85) {
+        const u = (p - 0.2) / 0.65;
+        return computeSpiral(u, phase);
+    } else {
+        const t = (p - 0.85) / 0.15;
+        const ease = easeInCubic(t);
+        const end  = computeSpiral(1, phase);
+        const star = new THREE.Vector3(0, STAR_Y, 0);
+        return end.lerp(star, ease);
+    }
+}
+
+function fillTrail(trail, pos) {
+    for (let i = 0; i < trail.length; i++) {
+        trail.pos[i*3]     = pos.x;
+        trail.pos[i*3 + 1] = pos.y;
+        trail.pos[i*3 + 2] = pos.z;
+        trail.alpha[i] = 0;
+    }
+    trail.geo.attributes.position.needsUpdate = true;
+    trail.geo.attributes.aAlpha.needsUpdate   = true;
+}
+
+function updateTrail(trail, newPos, intensity) {
+    const pA = trail.pos;
+    const aA = trail.alpha;
+    const len = trail.length;
+
+    for (let i = len - 1; i > 0; i--) {
+        pA[i*3]     = pA[(i-1)*3];
+        pA[i*3 + 1] = pA[(i-1)*3 + 1];
+        pA[i*3 + 2] = pA[(i-1)*3 + 2];
+    }
+    pA[0] = newPos.x;
+    pA[1] = newPos.y;
+    pA[2] = newPos.z;
+
+    for (let i = 0; i < len; i++) {
+        const f = 1 - i / len;
+        aA[i] = f * f * intensity;
+    }
+
+    trail.geo.attributes.position.needsUpdate = true;
+    trail.geo.attributes.aAlpha.needsUpdate   = true;
+}
+
+fillTrail(trail1, orbPosition(0, 0));
+fillTrail(trail2, orbPosition(0, Math.PI / 2));
+fillTrail(trail3, orbPosition(0, Math.PI));
+fillTrail(trail4, orbPosition(0, Math.PI * 1.5));
+
+const INTRO_DURATION = 5.0;
+let introProgress = 0;
+let introComplete = false;
+
+/* ========== 13. 相机 ========== */
+const camTarget = new THREE.Vector3(0, 2.6, 0);
+let camTheta  = 0.75;
+let camPhi    = 1.32;
+let camRadius = innerWidth < innerHeight ? 68 : 63;
+
+const CAM_OFFSET_X = innerWidth < innerHeight ? 7 : 10;
+
+const MIN_R = 15;
+const MAX_R = 100;
+
+function updateCamera() {
+    const sp = Math.sin(camPhi);
+    camera.position.set(
+        camRadius * sp * Math.sin(camTheta) + CAM_OFFSET_X,
+        camRadius * Math.cos(camPhi) + camTarget.y,
+        camRadius * sp * Math.cos(camTheta)
+    );
+    camera.lookAt(camTarget);
+}
+updateCamera();
+
+const dom = renderer.domElement;
+const pointers = new Map();
+
+let dragging   = false;
+let lastPX = 0, lastPY = 0;
+let pinchDist  = 0;
+let autoRotate = true;
+let spinVel    = 0;
+
+dom.addEventListener('pointerdown', (e) => {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { dom.setPointerCapture(e.pointerId); } catch (err) {}
+    if (pointers.size === 1) {
+        dragging   = true;
+        autoRotate = false;
+        lastPX = e.clientX;
+        lastPY = e.clientY;
+        spinVel = 0;
+    }
+});
+
+dom.addEventListener('pointermove', (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinchDist > 0) {
+            camRadius += (pinchDist - d) * 0.12;
+            camRadius = Math.max(MIN_R, Math.min(MAX_R, camRadius));
+        }
+        pinchDist = d;
+        dragging = false;
+    } else if (dragging) {
+        const dx = e.clientX - lastPX;
+        const dy = e.clientY - lastPY;
+        lastPX = e.clientX;
+        lastPY = e.clientY;
+
+        camTheta -= dx * 0.0055;
+        camPhi   -= dy * 0.0055;
+        camPhi    = Math.max(0.45, Math.min(1.95, camPhi));
+        spinVel   = -dx * 0.0055;
+    }
+});
+
+function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (pointers.size === 0) {
+        dragging   = false;
+        pinchDist  = 0;
+    } else if (pointers.size === 1) {
+        const p = [...pointers.values()][0];
+        lastPX = p.x;
+        lastPY = p.y;
+        dragging  = true;
+        pinchDist = 0;
+    }
+}
+dom.addEventListener('pointerup',     endPointer);
+dom.addEventListener('pointercancel', endPointer);
+
+dom.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    camRadius += e.deltaY * 0.03;
+    camRadius = Math.max(MIN_R, Math.min(MAX_R, camRadius));
+}, { passive: false });
+
+/* ========== 14. 开场更新 ========== */
+function updateIntro(dt) {
+    introProgress += dt / INTRO_DURATION;
+    if (introProgress >= 1) {
+        introProgress = 1;
+        introComplete = true;
+    }
+
+    const p = introProgress;
+
+    if (p < 0.2) {
+        const t = p / 0.2;
+        const grow = easeOutCubic(t);
+        treeGroup.scale.setScalar(Math.max(grow, 0.001));
+        treeGroup.position.y = TRUNK_BOTTOM_Y * (1 - grow);
+    } else {
+        treeGroup.scale.setScalar(1);
+        treeGroup.position.y = 0;
+    }
+
+    const orbP = p;
+    const pos1 = orbPosition(orbP, 0);
+    const pos2 = orbPosition(orbP, Math.PI / 2);
+    const pos3 = orbPosition(orbP, Math.PI);
+    const pos4 = orbPosition(orbP, Math.PI * 1.5);
+
+    orb1.group.position.copy(pos1);
+    orb2.group.position.copy(pos2);
+    orb3.group.position.copy(pos3);
+    orb4.group.position.copy(pos4);
+
+    let trailIntensity = 1;
+    if (p > 0.85) {
+        trailIntensity = Math.max(0, 1 - (p - 0.85) / 0.15);
+    }
+    updateTrail(trail1, pos1, trailIntensity);
+    updateTrail(trail2, pos2, trailIntensity);
+    updateTrail(trail3, pos3, trailIntensity);
+    updateTrail(trail4, pos4, trailIntensity);
+
+    if (p > 0.92) {
+        const fadeOut = Math.min(1, (p - 0.92) / 0.08);
+        const inv = 1 - fadeOut;
+        orb1.glow.material.opacity = 0.65 * inv;
+        orb1.core.material.opacity = 0.95 * inv;
+        orb2.glow.material.opacity = 0.65 * inv;
+        orb2.core.material.opacity = 0.95 * inv;
+        orb3.glow.material.opacity = 0.65 * inv;
+        orb3.core.material.opacity = 0.95 * inv;
+        orb4.glow.material.opacity = 0.65 * inv;
+        orb4.core.material.opacity = 0.95 * inv;
+    }
+
+    if (p > 0.82) {
+        const t = (p - 0.82) / 0.18;
+        const burst = Math.sin(Math.min(t, 1) * Math.PI) * 2.2;
+        const baseScale = 8 * (1 + burst);
+        starSprite.scale.set(baseScale, baseScale, 1);
+
+        const haloScale = 20 * (1 + burst * 0.7);
+        haloSprite.scale.set(haloScale, haloScale, 1);
+        haloMat.opacity = 0.55 + burst * 0.4;
+    }
+
+    if (introComplete) {
+        orb1.group.visible = false;
+        orb2.group.visible = false;
+        orb3.group.visible = false;
+        orb4.group.visible = false;
+        trail1.points.visible = false;
+        trail2.points.visible = false;
+        trail3.points.visible = false;
+        trail4.points.visible = false;
+        bandPoints.visible = true;
+        snowGroup.visible = true;
+        giftGroup.visible = true;
+        fireworkActive = true;
+        document.getElementById('text-overlay').classList.add('show');
+        document.getElementById('left-text').classList.add('show');
+    }
+}
+
+/* ========== 15. 主循环（加入信封控制） ========== */
+const clock = new THREE.Clock();
+let elapsed = 0;
+let started = false;
+
+// 信封点击事件
+document.getElementById('envelope').addEventListener('click', () => {
+    if (started) return;
+    started = true;
+
+    // 隐藏信封遮罩
+    const overlay = document.getElementById('envelope-overlay');
+    overlay.style.opacity = '0';
+
+    // 延迟设置 display:none 防止穿透
+    setTimeout(() => {
+        overlay.style.display = 'none';
+    }, 1500);
+});
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    const dt = Math.min(clock.getDelta(), 0.05);
+    elapsed += dt;
+    timeUniform.value = elapsed;
+
+    // 如果还没点击信封，只渲染背景（或者什么都不渲染，让 CSS 遮罩生效），然后直接返回
+    if (!started) {
+        renderer.render(scene, camera);
+        return;
+    }
+
+    if (!introComplete) {
+        updateIntro(dt);
+    } else {
+        treeGroup.rotation.y += dt * 0.16;
+        updateSwirlSnow(dt);
+        updateGifts(dt);
+        updateFireworks(dt);
+        renderFireworks();
+    }
+
+    if (autoRotate) {
+        camTheta += dt * 0.055;
+    } else if (Math.abs(spinVel) > 1e-4) {
+        camTheta += spinVel;
+        spinVel *= 0.93;
+        if (Math.abs(spinVel) < 0.0008) autoRotate = true;
+    }
+    updateCamera();
+
+    if (introComplete) {
+        const pulse = 1 + Math.sin(elapsed * 2.1) * 0.11;
+        starSprite.scale.set(8 * pulse, 8 * pulse, 1);
+        haloMat.opacity = 0.42 + Math.sin(elapsed * 1.4) * 0.16;
+        haloSprite.scale.setScalar(19 + Math.sin(elapsed * 1.4) * 3);
+    }
+    starMat.rotation += dt * 0.35;
+
+    bgStars.rotation.y += dt * 0.006;
+
+    renderer.render(scene, camera);
+}
+
+/* ========== 16. 自适应 ========== */
+addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    renderer.setSize(innerWidth, innerHeight);
+});
+
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+animate();
+</script>
+</body>
+</html>
+"""
